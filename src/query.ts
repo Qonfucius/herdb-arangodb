@@ -2,8 +2,11 @@ import { base64encode } from "./deps.ts";
 import { QUERY_ERROR } from "./query_error.ts";
 import { ChildDocument, Document } from "./document.ts";
 
-export const AllowedProtocol = ["http:", "https:"] as const;
-export type AllowedProtocol = typeof AllowedProtocol[number];
+export const InputAllowedProtocol = ["arangodb+http:", "arangodb+https:"] as const;
+export type InputAllowedProtocol = typeof InputAllowedProtocol[number];
+
+export const ArangoDBAllowedProtocol = ["http:", "https:"] as const;
+export type ArangoDBAllowedProtocol = typeof ArangoDBAllowedProtocol[number];
 
 export const AllowedMethod = ["GET", "POST", "PUT", "DELETE"] as const;
 export type AllowedMethod = typeof AllowedMethod[number];
@@ -20,7 +23,7 @@ export interface KnownHeaders {
 // deno-lint-ignore no-empty-interface
 export interface ConnectionOptions {}
 export interface ArangoDBURL {
-  protocol: AllowedProtocol;
+  protocol: ArangoDBAllowedProtocol;
   hostname: string;
   port: number;
   database?: string;
@@ -95,7 +98,7 @@ export class QueryError extends Error implements QueryError {
   }
 }
 
-export function urlParsing(url: string): ArangoDBURL {
+export function uriParsing(url: string): ArangoDBURL {
   const parsed = new URL(url);
   const port = +parsed.port;
   const query = [...new URLSearchParams(parsed.search).entries()].reduce(
@@ -105,16 +108,17 @@ export function urlParsing(url: string): ArangoDBURL {
     {} as ConnectionOptions,
   );
   const pathname = parsed.pathname.replace(/^\/+/, "");
+  if(!InputAllowedProtocol.includes(parsed.protocol as InputAllowedProtocol)) {
+    throw new Error(`Protocol "${parsed.protocol}" is not allowed`);
+  }
+  
   return {
     database: pathname.length > 0 ? pathname : undefined,
     hostname: parsed.hostname,
     username: parsed.username,
     password: parsed.password,
     port: Number.isNaN(port) ? 8529 : port,
-    protocol:
-      (AllowedProtocol.includes(parsed.protocol as AllowedProtocol)
-        ? parsed.protocol
-        : "http:") as AllowedProtocol,
+    protocol: parsed.protocol.replace('arangodb+', '') as ArangoDBAllowedProtocol,
     options: query,
   };
 }
@@ -203,7 +207,7 @@ export class Query<
   ) {
     this.paths = Array.isArray(paths) ? paths : [paths];
     if (typeof connectionUrl === "string") {
-      this.connectionUrl = urlParsing(connectionUrl);
+      this.connectionUrl = uriParsing(connectionUrl);
     } else {
       this.connectionUrl = connectionUrl;
     }

@@ -7,14 +7,14 @@ import {
   KnownHeaders,
   Query,
   QueryError,
-  urlParsing,
+  uriParsing,
 } from "./query.ts";
 import { Collection } from "./collection.ts";
 import { QUERY_ERROR } from "./query_error.ts";
 import { ChildDocument } from "./document.ts";
 
-interface ConnectionOptionsWithURL {
-  url: string;
+interface ConnectionOptionsWithURI {
+  uri: string;
 }
 
 // @todo
@@ -26,7 +26,7 @@ interface ConnectionOptionsWithURL {
 //   password?: string;
 // }
 
-export interface ConnectionOptions extends ConnectionOptionsWithURL {
+export interface ConnectionOptions extends ConnectionOptionsWithURI {
   collectionNameNormalizer?: (name: string) => string;
 }
 
@@ -49,7 +49,7 @@ export class Connection implements HerdbConnection<ConnectionOptions> {
     this.options = options;
   }
   public async connect() {
-    this.url = urlParsing(this.options.url);
+    this.url = uriParsing(this.options.uri);
     try {
       await this.getCurrentDatabaseInformation();
     } catch (e) {
