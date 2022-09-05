@@ -2,7 +2,10 @@ import { base64encode } from "./deps.ts";
 import { QUERY_ERROR } from "./query_error.ts";
 import { ChildDocument, Document } from "./document.ts";
 
-export const InputAllowedProtocol = ["arangodb+http:", "arangodb+https:"] as const;
+export const InputAllowedProtocol = [
+  "arangodb+http:",
+  "arangodb+https:",
+] as const;
 export type InputAllowedProtocol = typeof InputAllowedProtocol[number];
 
 export const ArangoDBAllowedProtocol = ["http:", "https:"] as const;
@@ -108,17 +111,20 @@ export function uriParsing(url: string): ArangoDBURL {
     {} as ConnectionOptions,
   );
   const pathname = parsed.pathname.replace(/^\/+/, "");
-  if(!InputAllowedProtocol.includes(parsed.protocol as InputAllowedProtocol)) {
+  if (!InputAllowedProtocol.includes(parsed.protocol as InputAllowedProtocol)) {
     throw new Error(`Protocol "${parsed.protocol}" is not allowed`);
   }
-  
+
   return {
     database: pathname.length > 0 ? pathname : undefined,
     hostname: parsed.hostname,
     username: parsed.username,
     password: parsed.password,
     port: Number.isNaN(port) ? 8529 : port,
-    protocol: parsed.protocol.replace('arangodb+', '') as ArangoDBAllowedProtocol,
+    protocol: parsed.protocol.replace(
+      "arangodb+",
+      "",
+    ) as ArangoDBAllowedProtocol,
     options: query,
   };
 }
