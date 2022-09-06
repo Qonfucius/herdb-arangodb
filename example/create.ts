@@ -1,26 +1,23 @@
 import { buildUser, User } from "./config.ts";
 
-console.log(
-  "created user, toModel, from static method: ",
-  await User.create(buildUser()).ok().toModel(),
-);
+let user: User;
+let userRaw: any;
 
-console.log(
-  "created user, toModel, from instance method: ",
-  await buildUser().create().ok().toModel(),
-);
+user = await User.create(buildUser()).ok().toModel();
+console.log("created user, toModel, from static method: ", user);
 
-console.log(
-  "created user, raw data, from instance method: ",
-  await buildUser().create().ok().returnNew().result(),
-);
+user = await buildUser().create().ok().toModel();
+console.log("created user, toModel, from instance method: ", user);
 
+userRaw = await buildUser().create().ok().returnNew().result();
+console.log("created user, raw data, from instance method: ", userRaw);
+
+userRaw = await buildUser().create().ok().returnNew().dataLookup("new")
+  .result();
 console.log(
   "created user, raw data, from instance method with dataLookup: ",
-  await buildUser().create().ok().returnNew().dataLookup("new").result(),
+  userRaw,
 );
 
-console.log(
-  "created user from instance instance without return new: ",
-  await buildUser().create().ok().result(),
-);
+userRaw = await buildUser().create().ok().result();
+console.log("created user from instance instance without returnNew: ", userRaw);

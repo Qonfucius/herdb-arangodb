@@ -1,6 +1,6 @@
 import { base64encode } from "./deps.ts";
 import { QUERY_ERROR } from "./query_error.ts";
-import { Document, GenericDocumentConstructor } from "./document.ts";
+import { Document, DocumentLikeConstructor } from "./document.ts";
 import { AqlQuery } from "./aql.ts";
 
 export const InputAllowedProtocol = [
@@ -131,7 +131,7 @@ export function uriParsing(url: string): ArangoDBURL {
 }
 
 export class QueryResponse<M> {
-  protected model?: GenericDocumentConstructor<M>;
+  protected model?: DocumentLikeConstructor<M>;
   protected dataLookupPaths: Set<string> = new Set<string>();
 
   // deno-lint-ignore no-explicit-any
@@ -141,7 +141,7 @@ export class QueryResponse<M> {
     return new this<M>(response, await response.json());
   }
 
-  public setModel(model: GenericDocumentConstructor<M>) {
+  public setModel(model: DocumentLikeConstructor<M>) {
     this.model = model;
     return this;
   }
@@ -218,7 +218,7 @@ export class Query<
   protected body?: BodyQuery;
   protected query?: QueryOptions;
   protected headers: Headers = { Accept: "application/json" } as Headers;
-  protected model?: GenericDocumentConstructor<M>;
+  protected model?: DocumentLikeConstructor<M>;
   protected modelDataLookup?: string;
   protected modelQueryParameters?: QueryOptions;
   // deno-lint-ignore no-explicit-any
@@ -255,7 +255,7 @@ export class Query<
     return this;
   }
 
-  public setModel(model: GenericDocumentConstructor<M>) {
+  public setModel(model: DocumentLikeConstructor<M>) {
     this.model = model;
     return this;
   }

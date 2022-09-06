@@ -21,7 +21,7 @@ await registry.connectInParallel();
 
 export interface User {
   username: string;
-  user_properties: Record<string, string>;
+  random_properties: Record<string, string>;
 }
 
 export class User extends ArangoDBDocument<User> implements User {
@@ -38,7 +38,7 @@ await User.create(new User());
 export function buildUser(partialUser: Partial<User> = {}) {
   return new User({
     username: `Red_Panda ${Date.now()}`,
-    user_properties: { prop1: "prop1" },
+    random_properties: { prop1: "prop1" },
     ...partialUser,
   });
 }

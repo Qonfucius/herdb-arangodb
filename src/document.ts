@@ -11,9 +11,17 @@ import { aql, AqlQuery } from "./aql.ts";
 // deno-lint-ignore no-empty-interface
 interface DocumentOptions extends CollectionOptions {}
 
-export abstract class Document<
-  I = typeof this,
-> extends Collection {
+export type DocumentLikeConstructor<I> = { new (object?: Partial<I>): I };
+
+// see https://stackoverflow.com/a/42768627
+// Allows to solve the type of this in static Document methods by introducing as first parameter `this`.
+export type StaticDocumentInterface<I extends Document> = {
+  query(query: AqlQuery): Query<I>;
+  connection: Connection;
+  collectionName: string;
+} & DocumentLikeConstructor<I>;
+
+export abstract class Document<I = typeof this> extends Collection {
   _key?: string;
 
   static connection: Connection;
@@ -51,7 +59,7 @@ export abstract class Document<
   }
 
   static create<I extends Document>(
-    this: StaticDocumentResolver<I>,
+    this: StaticDocumentInterface<I>,
     object: I,
   ): Query<I> {
     return this.connection
@@ -69,7 +77,7 @@ export abstract class Document<
   }
 
   static replace<I extends Document>(
-    this: StaticDocumentResolver<I>,
+    this: StaticDocumentInterface<I>,
     object: I,
   ): Query<I> {
     const key = object._key;
@@ -94,7 +102,7 @@ export abstract class Document<
   }
 
   static update<I extends Document>(
-    this: StaticDocumentResolver<I>,
+    this: StaticDocumentInterface<I>,
     object: I,
   ): Query<I> {
     const key = object._key;
@@ -119,7 +127,7 @@ export abstract class Document<
   }
 
   static query<I extends Document>(
-    this: StaticDocumentResolver<I>,
+    this: StaticDocumentInterface<I>,
     query: AqlQuery,
   ): Query<I> {
     return this.connection
@@ -132,14 +140,14 @@ export abstract class Document<
   }
 
   static find<I extends Document>(
-    this: StaticDocumentResolver<I>,
+    this: StaticDocumentInterface<I>,
   ): Query<I> {
     return this.query(aql`FOR doc IN ${this} RETURN doc`)
       .dataLookup("result");
   }
 
   static findByKey<I extends Document>(
-    this: StaticDocumentResolver<I>,
+    this: StaticDocumentInterface<I>,
     key: string,
   ): Query<I> {
     return this.connection
@@ -151,13 +159,3 @@ export abstract class Document<
 }
 
 export const DDocumentOptions = DCollectionOptions<DocumentOptions>;
-
-export type GenericDocumentConstructor<T> = { new (object?: Partial<T>): T };
-
-// see https://stackoverflow.com/a/42768627
-// Allows to solve the type of this in static Document methods by introducing as first parameter `this`.
-export type StaticDocumentResolver<T extends Document> = {
-  query(query: AqlQuery): Query<T>;
-  connection: Connection;
-  collectionName: string;
-} & GenericDocumentConstructor<T>;

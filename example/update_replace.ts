@@ -2,46 +2,43 @@ import { buildUser, User } from "./config.ts";
 
 const user = await buildUser().create().ok().toModel();
 
-user.username = "updated_panda";
-console.log(
-  "updated user, toModel, from static method: ",
-  await User.update(user).ok().toModel(),
-);
-
-user.username = "updated_panda_inception";
-console.log(
-  "updated user, toModel, from instance method: ",
-  await user.update().ok().toModel(),
-);
+let updatedUser: User;
+let updatedUserRaw: any;
 
 user.username = "updated_panda";
-console.log(
-  "updated user, raw data, from instance method: ",
-  await user.update().ok().returnNew().result(),
-);
+
+updatedUser = await User.update(user).ok().toModel(),
+  console.log("updated user, toModel, from static method: ", updatedUser);
 
 user.username = "updated_panda_inception";
-console.log(
-  "updated user, raw data, from instance method with dataLookup: ",
-  await user.update().ok().returnNew().dataLookup("new").result(),
-);
+updatedUser = await user.update().ok().toModel(),
+  console.log("updated user, toModel, from instance method: ", updatedUser);
 
 user.username = "updated_panda";
-console.log(
-  "updated user from instance method without return new: ",
-  await user.update().ok().result(),
-);
+updatedUserRaw = await user.update().ok().returnNew().result(),
+  console.log("updated user, raw data, from instance method: ", updatedUserRaw);
 
 user.username = "updated_panda_inception";
-user.user_properties.panda_weapon = "bamboo stick";
-console.log(
-  "updated nested document: ",
-  await user.update().ok().toModel(),
-);
+updatedUserRaw = await user.update().ok().returnNew().dataLookup("new")
+  .result(),
+  console.log(
+    "updated user, raw data, from instance method with dataLookup: ",
+    updatedUserRaw,
+  );
+
+user.username = "updated_panda";
+updatedUserRaw = await user.update().ok().result(),
+  console.log(
+    "updated user, raw data, from instance method without return new: ",
+    updatedUserRaw,
+  );
+
+user.username = "updated_panda_inception";
+user.random_properties.panda_weapon = "bamboo stick";
+updatedUser = await user.update().ok().toModel(),
+  console.log("updated nested document: ", updatedUser);
 
 user.username = "replaced_panda";
-user.user_properties = { panda_weapon: "bamboo sword" };
-console.log(
-  "replaced nested document: ",
-  await user.replace().ok().toModel(),
-);
+user.random_properties = { panda_weapon: "bamboo sword" };
+updatedUser = await user.replace().ok().toModel(),
+  console.log("replaced nested document: ", updatedUser);
