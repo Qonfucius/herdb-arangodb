@@ -4,7 +4,7 @@ import {
   DCollectionOptions,
 } from "./collection.ts";
 import { Connection } from "./connection.ts";
-import { QueryError } from "./query.ts";
+import { Query, QueryError } from "./query.ts";
 import { QUERY_ERROR } from "./query_error.ts";
 import { aql, AqlQuery } from "./aql.ts";
 
@@ -14,8 +14,10 @@ interface DocumentOptions extends CollectionOptions {}
 export abstract class Document<
   I = typeof this,
 > extends Collection {
+  _key?: string;
+
   static connection: Connection;
-  constructor(object?: I) {
+  constructor(object?: Partial<I>) {
     super();
     Object.assign(this, object);
   }
@@ -24,7 +26,9 @@ export abstract class Document<
     idempotent = true,
   ) {
     try {
-      return await this.connection.query(["collection"]).setMethod("POST")
+      return await this.connection
+        .query(["collection"])
+        .setMethod("POST")
         .setBody({ name: this.collectionName })
         .basicAuth();
     } catch (e) {
@@ -45,42 +49,115 @@ export abstract class Document<
     ]).setMethod("PUT")
       .basicAuth();
   }
+
   static create<I extends Document>(
+    this: StaticDocumentResolver<I>,
     object: I,
-  ) {
-    const collectionName = this.collectionName;
-    return this.connection.query<I>(["document", collectionName])
-      .setMethod("POST").setBody(object)
-      // @todo: don't returnNew by default
-      .setQueryParameters({ returnNew: "true" })
+  ): Query<I> {
+    return this.connection
+      .query<I>(["document", this.collectionName])
+      .setMethod("POST")
+      .setBody(object)
+      .setModel(this)
+      .setModelDataLookup("new")
+      .setModelQueryParameters({ returnNew: "true" })
+      .basicAuth();
+  }
+
+  create(): Query<typeof this> {
+    return Object.getPrototypeOf(this).constructor.create(this);
+  }
+
+  static replace<I extends Document>(
+    this: StaticDocumentResolver<I>,
+    object: I,
+  ): Query<I> {
+    const key = object._key;
+    if (!key) {
+      throw new Error(
+        `Unable to apply 'update' for Collection ${this.collectionName}, 
+         no _key defined`,
+      );
+    }
+    return this.connection
+      .query<I>(["document", this.collectionName, object._key!])
+      .setMethod("PUT")
+      .setBody(object)
+      .setModel(this)
+      .setModelDataLookup("new")
+      .setModelQueryParameters({ returnNew: "true" })
+      .basicAuth();
+  }
+
+  replace(): Query<typeof this> {
+    return Object.getPrototypeOf(this).constructor.replace(this);
+  }
+
+  static update<I extends Document>(
+    this: StaticDocumentResolver<I>,
+    object: I,
+  ): Query<I> {
+    const key = object._key;
+    if (!key) {
+      throw new Error(
+        `Unable to apply 'replace' for Collection ${this.collectionName}, 
+         no _key defined`,
+      );
+    }
+    return this.connection
+      .query<I>(["document", this.collectionName, key!])
+      .setMethod("PATCH")
+      .setBody(object)
+      .setModel(this)
+      .setModelDataLookup("new")
+      .setModelQueryParameters({ returnNew: "true" })
+      .basicAuth();
+  }
+
+  update(): Query<typeof this> {
+    return Object.getPrototypeOf(this).constructor.update(this);
+  }
+
+  static query<I extends Document>(
+    this: StaticDocumentResolver<I>,
+    query: AqlQuery,
+  ): Query<I> {
+    return this.connection
+      .query<I>(["cursor"])
+      .setMethod("POST")
+      .setBody(query)
+      .setModel(this)
       .basicAuth()
-      // @todo: don't returnNew by default
-      .dataLookup("new");
+      .dataLookup("data");
   }
 
-  static query(query: AqlQuery) {
-    return this.connection.query(["cursor"]).setMethod("POST").setBody(query)
-      .basicAuth().dataLookup("data");
+  static find<I extends Document>(
+    this: StaticDocumentResolver<I>,
+  ): Query<I> {
+    return this.query(aql`FOR doc IN ${this} RETURN doc`)
+      .dataLookup("result");
   }
 
-  static find() {
-    return this.query(aql`FOR doc IN ${this} RETURN doc`).dataLookup("result");
-  }
-
-  static findByKey(key: string) {
-    return this.connection.query(["document", this.collectionName, key])
+  static findByKey<I extends Document>(
+    this: StaticDocumentResolver<I>,
+    key: string,
+  ): Query<I> {
+    return this.connection
+      .query<I>(["document", this.collectionName, key])
       .setMethod("GET")
+      .setModel(this)
       .basicAuth();
   }
 }
 
 export const DDocumentOptions = DCollectionOptions<DocumentOptions>;
-export type ChildDocument<
-  // deno-lint-ignore no-explicit-any
-  T extends new (...args: any[]) => Record<string, any> = new (
-    // deno-lint-ignore no-explicit-any
-    ...args: any[]
-    // deno-lint-ignore no-explicit-any
-  ) => Record<string, any>,
-> // deno-lint-ignore no-explicit-any
- = new (...args: any[]) => Document<T>;
+
+export type GenericDocumentConstructor<T> = { new (object?: Partial<T>): T };
+
+// see https://stackoverflow.com/a/42768627
+// Allows to solve the type of this in static Document methods by introducing as first parameter `this`.
+export type StaticDocumentResolver<T extends Document> = {
+  query(query: AqlQuery): Query<T>;
+  connection: Connection;
+  collectionName: string;
+} & GenericDocumentConstructor<T>;

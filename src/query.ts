@@ -1,6 +1,7 @@
 import { base64encode } from "./deps.ts";
 import { QUERY_ERROR } from "./query_error.ts";
-import { ChildDocument, Document } from "./document.ts";
+import { Document, GenericDocumentConstructor } from "./document.ts";
+import { AqlQuery } from "./aql.ts";
 
 export const InputAllowedProtocol = [
   "arangodb+http:",
@@ -11,7 +12,7 @@ export type InputAllowedProtocol = typeof InputAllowedProtocol[number];
 export const ArangoDBAllowedProtocol = ["http:", "https:"] as const;
 export type ArangoDBAllowedProtocol = typeof ArangoDBAllowedProtocol[number];
 
-export const AllowedMethod = ["GET", "POST", "PUT", "DELETE"] as const;
+export const AllowedMethod = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 export type AllowedMethod = typeof AllowedMethod[number];
 
 export enum HeaderContentType {
@@ -129,18 +130,18 @@ export function uriParsing(url: string): ArangoDBURL {
   };
 }
 
-export class QueryResponse<M extends ChildDocument> {
-  protected model?: M;
+export class QueryResponse<M> {
+  protected model?: GenericDocumentConstructor<M>;
   protected dataLookupPaths: Set<string> = new Set<string>();
 
   // deno-lint-ignore no-explicit-any
   constructor(protected response: Response, protected data: any) {}
-  static async fromFetch<M extends ChildDocument>(fetched: Promise<Response>) {
+  static async fromFetch<M>(fetched: Promise<Response>) {
     const response = await fetched;
     return new this<M>(response, await response.json());
   }
 
-  public setModel(model?: M) {
+  public setModel(model: GenericDocumentConstructor<M>) {
     this.model = model;
     return this;
   }
@@ -153,10 +154,24 @@ export class QueryResponse<M extends ChildDocument> {
     if (!model) {
       throw new Error("Model not found");
     }
-    return new model(this.data);
+    return new model(this.lookup());
   }
 
-  public ok(): this {
+  public toModels(model = this.model) {
+    if (!model) {
+      throw new Error("Model not found");
+    }
+
+    const data = this.lookup();
+    if (!(data instanceof Array)) {
+      throw new TypeError(
+        "Query result is not an array, use 'toModel' instead",
+      );
+    }
+    return data.map((entry) => new model(entry));
+  }
+
+  public ok() {
     if (this.response.status >= 400) {
       throw new QueryError(this.response, this.data);
     }
@@ -164,6 +179,14 @@ export class QueryResponse<M extends ChildDocument> {
   }
 
   public result() {
+    return this.lookup();
+  }
+
+  public cursor() {
+    return this.lookup();
+  }
+
+  protected lookup() {
     if (this.dataLookupPaths.size === 0) {
       return this.data;
     }
@@ -175,35 +198,29 @@ export class QueryResponse<M extends ChildDocument> {
     return null;
   }
 
-  public cursor() {
-    if (this.dataLookupPaths.size === 0) {
-      return this.data;
-    }
-    for (const path of this.dataLookupPaths.values()) {
-      if (this.data[path]) {
-        return this.data[path];
-      }
-    }
-    return null;
-  }
   public dataLookup(...params: string[]) {
     this.dataLookupPaths = new Set(params);
     return this;
   }
 }
 
+type QueryOptions = Record<string, string>;
+// deno-lint-ignore no-explicit-any
+type BodyQuery = Document | AqlQuery | Record<string, any>;
+
 export class Query<
-  M extends ChildDocument = ChildDocument,
-  QueryOptions extends Record<string, string> = Record<string, string>,
+  M,
   Headers extends KnownHeaders = KnownHeaders,
-> implements PromiseLike<ChildDocument> {
+> implements PromiseLike<M | M[]> {
   protected connectionUrl: ArangoDBURL;
   protected paths: string[] = [];
   protected method: AllowedMethod = "GET";
-  protected body?: Document;
+  protected body?: BodyQuery;
   protected query?: QueryOptions;
   protected headers: Headers = { Accept: "application/json" } as Headers;
-  protected model?: M;
+  protected model?: GenericDocumentConstructor<M>;
+  protected modelDataLookup?: string;
+  protected modelQueryParameters?: QueryOptions;
   // deno-lint-ignore no-explicit-any
   protected chained: Set<(query: QueryResponse<M>) => any> = new Set();
 
@@ -238,7 +255,7 @@ export class Query<
     return this;
   }
 
-  public setModel(model: M) {
+  public setModel(model: GenericDocumentConstructor<M>) {
     this.model = model;
     return this;
   }
@@ -248,13 +265,13 @@ export class Query<
     return this;
   }
 
-  public setBody(body: Document) {
+  public setBody(body: BodyQuery) {
     this.body = body;
     return this;
   }
 
   public setQueryParameters(parameters: QueryOptions) {
-    this.query = parameters;
+    this.query = { ...this.query, ...parameters };
     return this;
   }
 
@@ -272,14 +289,48 @@ export class Query<
     return this;
   }
 
-  public ok() {
+  public setModelDataLookup(dataLookup: string) {
+    this.modelDataLookup = dataLookup;
+    return this;
+  }
+
+  public setModelQueryParameters(parameters: QueryOptions) {
+    this.modelQueryParameters = parameters;
+    return this;
+  }
+
+  public returnNew(returnNew = true) {
+    this.setQueryParameters({ returnNew: returnNew.toString() });
+    return this;
+  }
+
+  public ok(): this {
     this.chained.add((queryResponse: QueryResponse<M>) => queryResponse.ok());
     return this;
   }
 
-  public toModel() {
+  public toModel(): PromiseLike<M> {
+    if (this.modelDataLookup) {
+      this.dataLookup(this.modelDataLookup);
+      if (this.modelQueryParameters) {
+        this.setQueryParameters(this.modelQueryParameters);
+      }
+    }
     this.chained.add((queryResponse: QueryResponse<M>) =>
       queryResponse.toModel()
+    );
+    return this;
+  }
+
+  public toModels(): PromiseLike<M[]> {
+    if (this.modelDataLookup) {
+      this.dataLookup(this.modelDataLookup);
+      if (this.modelQueryParameters) {
+        this.setQueryParameters(this.modelQueryParameters);
+      }
+    }
+    this.chained.add((queryResponse: QueryResponse<M>) =>
+      queryResponse.toModels()
     );
     return this;
   }
@@ -311,11 +362,18 @@ export class Query<
   }
 
   public async exec() {
-    const response = (await QueryResponse.fromFetch<M>(fetch(this.url, {
-      method: this.method,
-      body: JSON.stringify(this.body),
-      headers: this.headers as unknown as HeadersInit,
-    }))).setModel(this.model);
+    const response = await QueryResponse.fromFetch<M>(
+      fetch(this.url, {
+        method: this.method,
+        body: JSON.stringify(this.body),
+        headers: this.headers as unknown as HeadersInit,
+      }),
+    );
+
+    if (this.model) {
+      response.setModel(this.model);
+    }
+
     return [...this.chained]
       .reduce(
         (resp, func: (q: QueryResponse<M>) => QueryResponse<M>) => func(resp),
@@ -323,7 +381,7 @@ export class Query<
       );
   }
 
-  then<TResult1 = QueryResponse<ChildDocument>, TResult2 = never>(
+  then<TResult1 = QueryResponse<M>, TResult2 = never>(
     onfulfilled?:
       // deno-lint-ignore no-explicit-any
       | ((value: any) => TResult1 | PromiseLike<TResult1>)

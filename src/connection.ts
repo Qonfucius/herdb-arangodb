@@ -11,7 +11,6 @@ import {
 } from "./query.ts";
 import { Collection } from "./collection.ts";
 import { QUERY_ERROR } from "./query_error.ts";
-import { ChildDocument } from "./document.ts";
 
 interface ConnectionOptionsWithURI {
   uri: string;
@@ -114,8 +113,7 @@ export class Connection implements HerdbConnection<ConnectionOptions> {
     return this.registry[key];
   }
   public query<
-    Model = unknown,
-    QueryOptions extends Record<string, string> = Record<string, string>,
+    Model,
     Headers extends KnownHeaders = KnownHeaders,
   >(
     path: string | Array<string>,
@@ -124,7 +122,7 @@ export class Connection implements HerdbConnection<ConnectionOptions> {
     if (!url) {
       throw new Error("Please `connect()` first");
     }
-    return new Query<ChildDocument, QueryOptions, Headers>(
+    return new Query<Model, Headers>(
       url,
       ["_api"].concat(path),
     );

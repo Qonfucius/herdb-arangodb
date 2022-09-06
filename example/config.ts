@@ -2,7 +2,6 @@
 
 import "https://deno.land/x/reflection/mod.ts";
 import {
-  aql,
   ConnectionFactory as ArangoDBConnectionFactory,
   DefineConnectionOptions as DefineArangoDBConnectionOptions,
   Document as ArangoDBDocument,
@@ -20,38 +19,26 @@ class DatabaseRegistry extends HerdbRegistry<typeof DatabaseRegistry> {
 const registry = new DatabaseRegistry();
 await registry.connectInParallel();
 
-// Creation and registration of the collection
-interface User {
+export interface User {
   username: string;
+  user_properties: Record<string, string>;
 }
-class User extends ArangoDBDocument<User> implements User {
+
+export class User extends ArangoDBDocument<User> implements User {
 }
 
 registry.get("arangodb").register(User);
+
 const UserModel = registry.get("arangodb").model("User");
 await UserModel.createCollection();
 
-// Create a new record
-const newUsername = "Red_Panda";
-await User.create(new User({ username: newUsername }));
+await User.create(new User());
 
-// Retrieve records with username equal to "Red_Panda"
-const users = await User.query(
-  aql`
-    FOR doc IN users
-    FILTER doc.username == ${newUsername}
-    RETURN doc
-  `,
-).dataLookup("result").ok().result();
-
-console.log(`Users with username = ${newUsername}:`, users);
-
-// Retrieve a record by its key.
-const user = await User.findByKey(users[0]._key).ok().result();
-
-console.log(`User with key = ${users[0]._key}:`, user);
-
-// Retrieve all users
-const allUsers = await User.find().ok().result();
-
-console.log("All users", allUsers);
+// Helper function for others examples
+export function buildUser(partialUser: Partial<User> = {}) {
+  return new User({
+    username: `Red_Panda ${Date.now()}`,
+    user_properties: { prop1: "prop1" },
+    ...partialUser,
+  });
+}
