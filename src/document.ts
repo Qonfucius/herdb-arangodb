@@ -4,7 +4,8 @@ import {
   DCollectionOptions,
 } from "./collection.ts";
 import { Connection } from "./connection.ts";
-import { Query, QueryError } from "./query.ts";
+import { Query, QueryError, GenericResponseResult } from "./query.ts";
+import { IndexDef } from "./index.ts";
 import { QUERY_ERROR } from "./query_error.ts";
 import { aql, AqlQuery } from "./aql.ts";
 
@@ -30,15 +31,43 @@ export abstract class Document<I = typeof this> extends Collection {
     Object.assign(this, object);
   }
 
+  static getIndexes() {
+    return this.connection.query<IndexDef[]>(["index"])
+      .setQueryParameters({ collection: this.collectionName })
+      .setMethod("GET")
+      .dataLookup("indexes")
+      .basicAuth();
+  }
+
+  static getIndex(nameOrId: string) {
+    return this.connection.query<IndexDef>(["index", this.collectionName, nameOrId])
+      .setMethod("GET")
+      .basicAuth();
+  }
+
+  static createIndex(indexDef: IndexDef) {
+    return this.connection.query<IndexDef>(["index"])
+      .setQueryParameters({ collection: this.collectionName })
+      .setMethod("POST")
+      .setBody(indexDef)
+      .basicAuth();
+  }
+
+  static removeIndex(nameOrId: string) {
+    return this.connection.query<GenericResponseResult>(["index", this.collectionName, nameOrId])
+      .setMethod("DELETE")
+      .basicAuth();
+  }
+
   static async createCollection(
     idempotent = true,
   ) {
     try {
       return await this.connection
-        .query(["collection"])
+        .query<GenericResponseResult>(["collection"])
         .setMethod("POST")
         .setBody({ name: this.collectionName })
-        .basicAuth();
+        .basicAuth() as Promise<GenericResponseResult>;
     } catch (e) {
       if (
         !(e instanceof QueryError) || !idempotent ||
@@ -50,7 +79,7 @@ export abstract class Document<I = typeof this> extends Collection {
   }
 
   static truncateCollection() {
-    return this.connection.query([
+    return this.connection.query<GenericResponseResult>([
       "collection",
       this.collectionName,
       "truncate",
@@ -61,7 +90,7 @@ export abstract class Document<I = typeof this> extends Collection {
   static create<I extends Document>(
     this: StaticDocumentInterface<I>,
     object: I,
-  ): Query<I> {
+  ) {
     return this.connection
       .query<I>(["document", this.collectionName])
       .setMethod("POST")
@@ -79,7 +108,7 @@ export abstract class Document<I = typeof this> extends Collection {
   static replace<I extends Document>(
     this: StaticDocumentInterface<I>,
     object: I,
-  ): Query<I> {
+  ) {
     const key = object._key;
     if (!key) {
       throw new Error(
@@ -104,7 +133,7 @@ export abstract class Document<I = typeof this> extends Collection {
   static update<I extends Document>(
     this: StaticDocumentInterface<I>,
     object: I,
-  ): Query<I> {
+  ) {
     const key = object._key;
     if (!key) {
       throw new Error(
@@ -129,7 +158,7 @@ export abstract class Document<I = typeof this> extends Collection {
   static query<I extends Document>(
     this: StaticDocumentInterface<I>,
     query: AqlQuery,
-  ): Query<I> {
+  ) {
     return this.connection
       .query<I>(["cursor"])
       .setMethod("POST")
@@ -141,7 +170,7 @@ export abstract class Document<I = typeof this> extends Collection {
 
   static find<I extends Document>(
     this: StaticDocumentInterface<I>,
-  ): Query<I> {
+  ) {
     return this.query(aql`FOR doc IN ${this} RETURN doc`)
       .dataLookup("result");
   }
@@ -149,7 +178,7 @@ export abstract class Document<I = typeof this> extends Collection {
   static findByKey<I extends Document>(
     this: StaticDocumentInterface<I>,
     key: string,
-  ): Query<I> {
+  ) {
     return this.connection
       .query<I>(["document", this.collectionName, key])
       .setMethod("GET")

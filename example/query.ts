@@ -6,17 +6,20 @@ const persistedUser = await buildUser().create().ok().toModel();
 await buildUser({ username: "white_panda" }).create().ok().toModel();
 
 let user: User;
-let userRaw: any;
+let userRaw: User;
 let users: User[];
 
 user = await User.findByKey(persistedUser._key!).ok().toModel();
-console.log("recovered user model: ", user);
+console.log("recovered user model:\n", user, "\n");
 
 userRaw = await User.findByKey(persistedUser._key!).ok().result();
-console.log("recovered user raw data: ", userRaw);
+console.log("recovered user raw data:\n", userRaw, "\n");
 
 users = await User.find().ok().toModels();
-console.log("all recovered users model: ", users);
+console.log("all recovered users model:\n", users, "\n");
+
+// Clean collection
+await User.truncateCollection().ok().result();
 
 // FIXME, rebase https://gitlab.com/qonfucius/herdb/herdb_arangodb/-/merge_requests/3
 // import { aql } from "../mod.ts";

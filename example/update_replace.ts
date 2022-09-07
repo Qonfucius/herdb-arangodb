@@ -3,42 +3,46 @@ import { buildUser, User } from "./config.ts";
 const user = await buildUser().create().ok().toModel();
 
 let updatedUser: User;
-let updatedUserRaw: any;
+let updatedUserRaw: User;
 
 user.username = "updated_panda";
 
 updatedUser = await User.update(user).ok().toModel(),
-  console.log("updated user, toModel, from static method: ", updatedUser);
+  console.log("updated user, toModel, from static method:\n", updatedUser, "\n");
 
 user.username = "updated_panda_inception";
 updatedUser = await user.update().ok().toModel(),
-  console.log("updated user, toModel, from instance method: ", updatedUser);
+  console.log("updated user, toModel, from instance method:\n", updatedUser, "\n");
 
 user.username = "updated_panda";
 updatedUserRaw = await user.update().ok().returnNew().result(),
-  console.log("updated user, raw data, from instance method: ", updatedUserRaw);
+  console.log("updated user, raw data, from instance method:\n", updatedUserRaw, "\n");
 
 user.username = "updated_panda_inception";
 updatedUserRaw = await user.update().ok().returnNew().dataLookup("new")
   .result(),
   console.log(
-    "updated user, raw data, from instance method with dataLookup: ",
+    "updated user, raw data, from instance method with dataLookup:\n",
     updatedUserRaw,
+    "\n",
   );
 
 user.username = "updated_panda";
 updatedUserRaw = await user.update().ok().result(),
   console.log(
-    "updated user, raw data, from instance method without return new: ",
-    updatedUserRaw,
+    "updated user, raw data, from instance method without return new:\n",
+    updatedUserRaw, "\n",
   );
 
 user.username = "updated_panda_inception";
 user.random_properties.panda_weapon = "bamboo stick";
 updatedUser = await user.update().ok().toModel(),
-  console.log("updated nested document: ", updatedUser);
+  console.log("updated nested document:\n", updatedUser, "\n");
 
 user.username = "replaced_panda";
 user.random_properties = { panda_weapon: "bamboo sword" };
 updatedUser = await user.replace().ok().toModel(),
-  console.log("replaced nested document: ", updatedUser);
+  console.log("replaced nested document:\n", updatedUser, "\n");
+
+// Clean collection
+await User.truncateCollection().ok().result();

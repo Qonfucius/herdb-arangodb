@@ -24,6 +24,12 @@ export interface KnownHeaders {
   Accept?: HeaderContentType;
 }
 
+export interface GenericResponseResult {
+  [key: string]: number | string | boolean | GenericResponseResult;
+  code: number;
+  error: boolean;
+}
+
 // deno-lint-ignore no-empty-interface
 export interface ConnectionOptions {}
 export interface ArangoDBURL {
@@ -304,7 +310,7 @@ export class Query<
     return this;
   }
 
-  public ok(): this {
+  public ok() {
     this.chained.add((queryResponse: QueryResponse<M>) => queryResponse.ok());
     return this;
   }
@@ -340,7 +346,7 @@ export class Query<
     return this;
   }
 
-  public result() {
+  public result(): PromiseLike<M> {
     this.chained.add((queryResponse: QueryResponse<M>) =>
       queryResponse.result()
     );
