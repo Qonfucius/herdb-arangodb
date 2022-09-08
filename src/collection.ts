@@ -19,6 +19,10 @@ export class Collection {
         ((arg) => Case.paramCase(plural(arg)));
     return options.name ?? normalizer(this.name);
   }
+  
+  constructor(o?: { [key: string]: any }) {
+    Object.assign(this, o)
+  }
 
   static connection: Connection;
   //todo: async create(idempotent: boolean = true, options: object = {}): this
