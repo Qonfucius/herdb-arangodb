@@ -1,5 +1,8 @@
 import { buildUser, TUser, User } from "./config.ts";
 
+// Clean collection
+await User.truncateCollection().ok().result();
+
 const user = await buildUser().create().ok().toModel();
 
 let updatedUser: User;
@@ -56,6 +59,3 @@ user.username = "replaced_panda";
 user.random_properties = { panda_weapon: "bamboo sword" };
 updatedUser = await user.replace().ok().toModel(),
   console.log("replaced nested document:\n", updatedUser, "\n");
-
-// Clean collection
-await User.truncateCollection().ok().result();

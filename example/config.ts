@@ -1,25 +1,23 @@
 // deno run --allow-net example/config.ts
 
 import "https://deno.land/x/reflection/mod.ts";
-import {
-  ConnectionFactory as ArangoDBConnectionFactory,
-  DefineConnectionOptions as DefineArangoDBConnectionOptions,
-  Document as ArangoDBDocument,
-} from "../mod.ts";
-import { Registry as HerdbRegistry } from "https://deno.land/x/herdb@v0.1.0/mod.ts";
+import * as HerdbArangoDB from "../mod.ts";
+import * as Herdb from "https://deno.land/x/herdb@v0.1.0/mod.ts";
 
 // Init arango db connection
-class DatabaseRegistry extends HerdbRegistry<typeof DatabaseRegistry> {
-  @DefineArangoDBConnectionOptions({
+class DatabaseRegistry extends Herdb.Registry<typeof DatabaseRegistry> {
+  @HerdbArangoDB.DefineConnectionOptions({
     uri: "arangodb+http://root:root@localhost:8529/_system",
   })
-  public static arangodb = ArangoDBConnectionFactory;
+  static arangodb = HerdbArangoDB.ConnectionFactory;
 }
 
 const registry = new DatabaseRegistry();
 await registry.connectInParallel();
 
-export interface TUser {
+const arangodb = registry.get("arangodb");
+
+export interface TUser extends HerdbArangoDB.DocumentMetadata {
   username: string;
   random_properties: Record<string, string>;
 }
@@ -28,15 +26,16 @@ export interface TUser {
 // to automatically include the interface properties in the class
 // deno-lint-ignore no-empty-interface
 export interface User extends TUser {}
-export class User extends ArangoDBDocument<User> implements TUser {
+
+// Inject document options, including the name of the collection
+@HerdbArangoDB.DDocumentOptions()
+export class User extends HerdbArangoDB.DocumentInterface<User, TUser>() {
 }
 
-registry.get("arangodb").register(User);
+arangodb.register(User);
 
 const UserModel = registry.get("arangodb").model("User");
 await UserModel.createCollection();
-
-await User.create(new User());
 
 // Helper function for others examples
 export function buildUser(partialUser: Partial<User> = {}) {

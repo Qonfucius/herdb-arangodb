@@ -1,7 +1,6 @@
 import { User } from "./config.ts";
 import { IndexDef, IndexType } from "../mod.ts";
 
-let indexes: IndexDef[];
 let index: IndexDef;
 let newIndex: IndexDef;
 
@@ -12,7 +11,7 @@ await User.removeIndex("idx_1743303641934069760").result();
 
 await User.truncateCollection().ok().result();
 
-indexes = await User.getIndexes().dataLookup("indexes").result();
+const indexes = await User.getIndexes().dataLookup("indexes").result();
 console.log("Default indexes:\n ", indexes, "\n");
 
 index = await User.getIndex("primary").result();
