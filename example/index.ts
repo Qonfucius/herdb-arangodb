@@ -38,6 +38,11 @@ newIndex = await User.createIndex({
   unique: false,
   fields: ["random_properties.prop1", "random_properties.panda_weapon"],
 }).result();
-console.log("New index random_properties_prop1_and_panda_weapon_index index:\n ", newIndex, "\n");
+console.log(
+  "New index random_properties_prop1_and_panda_weapon_index index:\n ",
+  newIndex,
+  "\n",
+);
 
-await User.removeIndex("random_properties_prop1_and_panda_weapon_index").result();
+await User.removeIndex("random_properties_prop1_and_panda_weapon_index")
+  .result();

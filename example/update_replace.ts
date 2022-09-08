@@ -1,22 +1,34 @@
-import { buildUser, User } from "./config.ts";
+import { buildUser, TUser, User } from "./config.ts";
 
 const user = await buildUser().create().ok().toModel();
 
 let updatedUser: User;
-let updatedUserRaw: User;
+let updatedUserRaw: TUser;
 
 user.username = "updated_panda";
 
 updatedUser = await User.update(user).ok().toModel(),
-  console.log("updated user, toModel, from static method:\n", updatedUser, "\n");
+  console.log(
+    "updated user, toModel, from static method:\n",
+    updatedUser,
+    "\n",
+  );
 
 user.username = "updated_panda_inception";
 updatedUser = await user.update().ok().toModel(),
-  console.log("updated user, toModel, from instance method:\n", updatedUser, "\n");
+  console.log(
+    "updated user, toModel, from instance method:\n",
+    updatedUser,
+    "\n",
+  );
 
 user.username = "updated_panda";
-updatedUserRaw = await user.update().ok().returnNew().result(),
-  console.log("updated user, raw data, from instance method:\n", updatedUserRaw, "\n");
+updatedUserRaw = await user.update().ok().returnNew().result<TUser>(),
+  console.log(
+    "updated user, raw data, from instance method:\n",
+    updatedUserRaw,
+    "\n",
+  );
 
 user.username = "updated_panda_inception";
 updatedUserRaw = await user.update().ok().returnNew().dataLookup("new")
@@ -28,10 +40,11 @@ updatedUserRaw = await user.update().ok().returnNew().dataLookup("new")
   );
 
 user.username = "updated_panda";
-updatedUserRaw = await user.update().ok().result(),
+updatedUserRaw = await user.update().ok().result<TUser>(),
   console.log(
     "updated user, raw data, from instance method without return new:\n",
-    updatedUserRaw, "\n",
+    updatedUserRaw,
+    "\n",
   );
 
 user.username = "updated_panda_inception";

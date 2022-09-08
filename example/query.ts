@@ -1,4 +1,4 @@
-import { buildUser, User } from "./config.ts";
+import { buildUser, TUser, User } from "./config.ts";
 
 await User.truncateCollection().ok().result();
 
@@ -6,13 +6,13 @@ const persistedUser = await buildUser().create().ok().toModel();
 await buildUser({ username: "white_panda" }).create().ok().toModel();
 
 let user: User;
-let userRaw: User;
+let userRaw: TUser;
 let users: User[];
 
 user = await User.findByKey(persistedUser._key!).ok().toModel();
 console.log("recovered user model:\n", user, "\n");
 
-userRaw = await User.findByKey(persistedUser._key!).ok().result();
+userRaw = await User.findByKey(persistedUser._key!).ok().result<TUser>();
 console.log("recovered user raw data:\n", userRaw, "\n");
 
 users = await User.find().ok().toModels();

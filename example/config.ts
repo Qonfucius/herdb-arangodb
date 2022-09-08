@@ -19,12 +19,16 @@ class DatabaseRegistry extends HerdbRegistry<typeof DatabaseRegistry> {
 const registry = new DatabaseRegistry();
 await registry.connectInParallel();
 
-export interface User {
+export interface TUser {
   username: string;
   random_properties: Record<string, string>;
 }
 
-export class User extends ArangoDBDocument<User> implements User {
+// By creating an interface with the same name as the class, this allows
+// to automatically include the interface properties in the class
+// deno-lint-ignore no-empty-interface
+export interface User extends TUser {}
+export class User extends ArangoDBDocument<User> implements TUser {
 }
 
 registry.get("arangodb").register(User);

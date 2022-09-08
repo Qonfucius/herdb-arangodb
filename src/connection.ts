@@ -113,7 +113,8 @@ export class Connection implements HerdbConnection<ConnectionOptions> {
     return this.registry[key];
   }
   public query<
-    Model,
+    Record = unknown,
+    Model = unknown,
     Headers extends KnownHeaders = KnownHeaders,
   >(
     path: string | Array<string>,
@@ -122,7 +123,7 @@ export class Connection implements HerdbConnection<ConnectionOptions> {
     if (!url) {
       throw new Error("Please `connect()` first");
     }
-    return new Query<Model, Headers>(
+    return new Query<Record, Model, Headers>(
       url,
       ["_api"].concat(path),
     );
