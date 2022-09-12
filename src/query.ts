@@ -137,7 +137,7 @@ export function uriParsing(url: string): ArangoDBURL {
 }
 
 export class QueryResponse<R, M> {
-  protected model?: DocumentLikeConstructor<M>;
+  protected model?: DocumentLikeConstructor<R, M>;
   protected dataLookupPaths: Set<string> = new Set<string>();
 
   // deno-lint-ignore no-explicit-any
@@ -147,7 +147,7 @@ export class QueryResponse<R, M> {
     return new this<R, M>(response, await response.json());
   }
 
-  public setModel(model: DocumentLikeConstructor<M>) {
+  public setModel(model: DocumentLikeConstructor<R, M>) {
     this.model = model;
     return this;
   }
@@ -212,7 +212,7 @@ export class QueryResponse<R, M> {
 
 type QueryOptions = Record<string, string>;
 // deno-lint-ignore no-explicit-any
-type BodyQuery = Document | AqlQuery | Record<string, any>;
+type BodyQuery<R> = Document<R> | AqlQuery | Record<string, any>;
 
 export class Query<
   R,
@@ -222,10 +222,10 @@ export class Query<
   protected connectionUrl: ArangoDBURL;
   protected paths: string[] = [];
   protected method: AllowedMethod = "GET";
-  protected body?: BodyQuery;
+  protected body?: BodyQuery<R>;
   protected query?: QueryOptions;
   protected headers: Headers = { Accept: "application/json" } as Headers;
-  protected model?: DocumentLikeConstructor<M>;
+  protected model?: DocumentLikeConstructor<R, M>;
   protected modelDataLookup?: string;
   protected modelQueryParameters?: QueryOptions;
   // deno-lint-ignore no-explicit-any
@@ -262,7 +262,7 @@ export class Query<
     return this;
   }
 
-  public setModel(model: DocumentLikeConstructor<M>) {
+  public setModel(model: DocumentLikeConstructor<R, M>) {
     this.model = model;
     return this;
   }
@@ -272,7 +272,7 @@ export class Query<
     return this;
   }
 
-  public setBody(body: BodyQuery) {
+  public setBody(body: BodyQuery<R>) {
     this.body = body;
     return this;
   }
@@ -312,9 +312,7 @@ export class Query<
   }
 
   public ok() {
-    this.chained.add((queryResponse: QueryResponse<R, M>) =>
-      queryResponse.ok()
-    );
+    this.chained.add((queryResponse: QueryResponse<R, M>) => queryResponse.ok());
     return this;
   }
 
@@ -345,9 +343,7 @@ export class Query<
   }
 
   public json() {
-    this.chained.add((queryResponse: QueryResponse<R, M>) =>
-      queryResponse.json()
-    );
+    this.chained.add((queryResponse: QueryResponse<R, M>) => queryResponse.json());
     return this;
   }
 
@@ -372,7 +368,7 @@ export class Query<
     return this;
   }
 
-  public async exec() {
+  public async exec(): Promise<QueryResponse<R, M>> {
     const response = await QueryResponse.fromFetch<R, M>(
       fetch(this.url, {
         method: this.method,
@@ -387,8 +383,7 @@ export class Query<
 
     return [...this.chained]
       .reduce(
-        (resp, func: (q: QueryResponse<R, M>) => QueryResponse<R, M>) =>
-          func(resp),
+        (resp, func: (q: QueryResponse<R, M>) => QueryResponse<R, M>) => func(resp),
         response,
       );
   }

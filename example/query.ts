@@ -12,7 +12,7 @@ let users: User[];
 user = await User.findByKey(persistedUser._key!).ok().toModel();
 console.log("recovered user model:\n", user, "\n");
 
-userRaw = await User.findByKey(persistedUser._key!).ok().result<TUser>();
+userRaw = await User.findByKey(persistedUser._key!).ok().result();
 console.log("recovered user raw data:\n", userRaw, "\n");
 
 users = await User.find().ok().toModels();

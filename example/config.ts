@@ -29,7 +29,7 @@ export interface User extends TUser {}
 
 // Inject document options, including the name of the collection
 @HerdbArangoDB.DDocumentOptions()
-export class User extends HerdbArangoDB.DocumentInterface<User, TUser>() {
+export class User extends HerdbArangoDB.DocumentClassFactory<User, TUser>() {
 }
 
 arangodb.register(User);

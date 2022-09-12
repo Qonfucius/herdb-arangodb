@@ -20,19 +20,58 @@ export interface DocumentMetadata {
   _rev?: string;
 }
 
-export abstract class Document<R extends DocumentMetadata> extends Collection
+interface DocumentClassInterface<R, M> {
+  create(object: R | M): Query<R, M>;
+  replace(object: R | M): Query<R, M>;
+  update(object: R | M): Query<R, M>;
+  delete(object: R | M): Query<R, M>;
+}
+
+export class Document<R extends DocumentMetadata> extends Collection
   implements DocumentMetadata {
-  constructor(object?: Partial<R>) {
+  _key?: string;
+  _id?: string;
+  _rev?: string;
+
+  constructor(object?: R) {
     super();
     Object.assign(this, object);
   }
+
+  create(): Query<R, this> {
+    return (Object.getPrototypeOf(this).constructor as DocumentClassInterface<
+      R,
+      this
+    >).create(this);
+  }
+
+  replace(): Query<R, this> {
+    return (Object.getPrototypeOf(this).constructor as DocumentClassInterface<
+      R,
+      this
+    >).replace(this);
+  }
+
+  update(): Query<R, this> {
+    return (Object.getPrototypeOf(this).constructor as DocumentClassInterface<
+      R,
+      this
+    >).update(this);
+  }
+
+  delete(): Query<R, this> {
+    return (Object.getPrototypeOf(this).constructor as DocumentClassInterface<
+      R,
+      this
+    >).delete(this);
+  }
 }
 
-export function DocumentInterface<
+export function DocumentClassFactory<
   M,
-  R extends DocumentMetadata = Partial<M>,
+  R extends DocumentMetadata,
 >() {
-  return class extends Document<R> {
+  return class DocumentClassFactory extends Document<R> {
     static connection: Connection;
 
     static getIndexes() {
@@ -93,19 +132,15 @@ export function DocumentInterface<
         .basicAuth();
     }
 
-    static create(object: R) {
+    static create(object: R | M) {
       return this.connection
         .query<R, M>(["document", this.collectionName])
         .setMethod("POST")
         .setBody(object)
-        .setModel(this)
+        .setModel(this as unknown as DocumentLikeConstructor<R, M>)
         .setModelDataLookup("new")
         .setModelQueryParameters({ returnNew: "true" })
         .basicAuth();
-    }
-
-    create(): Query<unknown, this> {
-      return Object.getPrototypeOf(this).constructor.create(this);
     }
 
     static replace(object: R) {
@@ -120,14 +155,10 @@ export function DocumentInterface<
         .query<R, M>(["document", this.collectionName, object._key!])
         .setMethod("PUT")
         .setBody(object)
-        .setModel(this)
+        .setModel(this as unknown as DocumentLikeConstructor<R, M>)
         .setModelDataLookup("new")
         .setModelQueryParameters({ returnNew: "true" })
         .basicAuth();
-    }
-
-    replace(): Query<R, M> {
-      return Object.getPrototypeOf(this).constructor.replace(this);
     }
 
     static update(object: R) {
@@ -142,14 +173,24 @@ export function DocumentInterface<
         .query<R, M>(["document", this.collectionName, key!])
         .setMethod("PATCH")
         .setBody(object)
-        .setModel(this)
+        .setModel(this as unknown as DocumentLikeConstructor<R, M>)
         .setModelDataLookup("new")
         .setModelQueryParameters({ returnNew: "true" })
         .basicAuth();
     }
 
-    update(): Query<unknown, this> {
-      return Object.getPrototypeOf(this).constructor.update(this);
+    static delete(object: R) {
+      const key = object._key;
+      if (!key) {
+        throw new Error(
+          `Unable to apply 'delete' for Collection ${this.collectionName}, 
+          no _key defined`,
+        );
+      }
+      return this.connection
+        .query<GenericResponseResult>(["document", this.collectionName, key!])
+        .setMethod("DELETE")
+        .basicAuth();
     }
 
     static query(query: AqlQuery) {
@@ -157,7 +198,7 @@ export function DocumentInterface<
         .query<R, M>(["cursor"])
         .setMethod("POST")
         .setBody(query)
-        .setModel(this)
+        .setModel(this as unknown as DocumentLikeConstructor<R, M>)
         .basicAuth()
         .dataLookup("data");
     }
@@ -171,7 +212,7 @@ export function DocumentInterface<
       return this.connection
         .query<R, M>(["document", this.collectionName, key])
         .setMethod("GET")
-        .setModel(this)
+        .setModel(this as unknown as DocumentLikeConstructor<R, M>)
         .basicAuth();
     }
   };
