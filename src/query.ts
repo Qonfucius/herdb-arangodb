@@ -1,7 +1,7 @@
 import { base64encode } from "./deps.ts";
 import { QUERY_ERROR } from "./query_error.ts";
-import { Document, DocumentLikeConstructor } from "./document.ts";
 import { AqlQuery } from "./aql.ts";
+import { ConnectionOptions } from "./connection.ts";
 
 export const InputAllowedProtocol = [
   "arangodb+http:",
@@ -30,8 +30,6 @@ export interface GenericResponseResult {
   error: boolean;
 }
 
-// deno-lint-ignore no-empty-interface
-export interface ConnectionOptions {}
 export interface ArangoDBURL {
   protocol: ArangoDBAllowedProtocol;
   hostname: string;
@@ -137,44 +135,28 @@ export function uriParsing(url: string): ArangoDBURL {
 }
 
 export class QueryResponse<R, M> {
-  protected model?: DocumentLikeConstructor<R, M>;
-  protected dataLookupPaths: Set<string> = new Set<string>();
+  // deno-lint-ignore no-explicit-any
+  protected toModelFactory?: (data: any) => M;
+  protected toModelCached?: M;
+  protected toModelResolved = false;
+
+  protected resultCached?: R;
+  protected resultResolved = false;
+
+  protected dataLookupPaths: string[] = [];
 
   // deno-lint-ignore no-explicit-any
-  constructor(protected response: Response, protected data: any) {}
+  constructor(public response: Response, protected data: any) {}
+
   static async fromFetch<R, M>(fetched: Promise<Response>) {
     const response = await fetched;
     return new this<R, M>(response, await response.json());
   }
 
-  public setModel(model: DocumentLikeConstructor<R, M>) {
-    this.model = model;
+  // deno-lint-ignore no-explicit-any
+  public setToModelFactory(toModelFactory: (data: any) => M) {
+    this.toModelFactory = toModelFactory;
     return this;
-  }
-
-  public json() {
-    return this.data;
-  }
-
-  public toModel(model = this.model) {
-    if (!model) {
-      throw new Error("Model not found");
-    }
-    return new model(this.lookup());
-  }
-
-  public toModels(model = this.model) {
-    if (!model) {
-      throw new Error("Model not found");
-    }
-
-    const data = this.lookup();
-    if (!(data instanceof Array)) {
-      throw new TypeError(
-        "Query result is not an array, use 'toModel' instead",
-      );
-    }
-    return data.map((entry) => new model(entry));
   }
 
   public ok() {
@@ -184,52 +166,100 @@ export class QueryResponse<R, M> {
     return this;
   }
 
-  public result() {
-    return this.lookup();
+  public json() {
+    return this.data;
   }
 
-  public cursor() {
-    return this.lookup();
+  public toModel(): M {
+    if (this.toModelResolved) {
+      return this.toModelCached!;
+    }
+    if (!this.toModelFactory) {
+      throw new Error("No Model Factory found");
+    }
+    this.ok();
+    this.toModelCached = this.toModelFactory(this.lookup(true));
+    this.toModelResolved = true;
+    return this.toModelCached!;
   }
 
-  protected lookup() {
-    if (this.dataLookupPaths.size === 0) {
+  public result(): R {
+    if (this.resultResolved) {
+      return this.resultCached!;
+    }
+    this.ok();
+    this.resultCached = this.lookup(true);
+    this.resultResolved = true;
+    return this.resultCached!;
+  }
+
+  public cursor(): R {
+    this.ok();
+    return this.lookup(true);
+  }
+
+  protected lookup(raiseOnPartialLookup = false) {
+    if (this.dataLookupPaths.length === 0) {
       return this.data;
     }
-    for (const path of this.dataLookupPaths.values()) {
-      if (this.data[path]) {
-        return this.data[path];
+
+    let lookupResult = this.data;
+    for (const path of this.dataLookupPaths) {
+      if (path in lookupResult) {
+        lookupResult = lookupResult[path];
+      } else {
+        if (raiseOnPartialLookup) {
+          throw new Error(
+            `Data lookup on path '${this.dataLookupPaths}' failed`
+          );
+        }
+        lookupResult = null;
+        break;
       }
     }
-    return null;
+    return lookupResult;
   }
 
   public dataLookup(...params: string[]) {
-    this.dataLookupPaths = new Set(params);
+    this.dataLookupPaths = params;
+    return this;
+  }
+}
+
+export class ResolvedQueryResponse<R, M> extends QueryResponse<R, M> {
+  // deno-lint-ignore no-explicit-any
+  constructor(data: any, toModelCached: M) {
+    super(new Response(), data);
+    this.toModelCached = toModelCached;
+    this.toModelResolved = true;
+    this.resultResolved = true;
+  }
+
+  public ok() {
     return this;
   }
 }
 
 type QueryOptions = Record<string, string>;
 // deno-lint-ignore no-explicit-any
-type BodyQuery<R> = Document<R> | AqlQuery | Record<string, any>;
+type BodyQuery = AqlQuery | Record<string, any>;
 
 export class Query<
   R,
   M,
   Headers extends KnownHeaders = KnownHeaders,
-> implements PromiseLike<M | M[]> {
+> implements PromiseLike<QueryResponse<R, M>> {
   protected connectionUrl: ArangoDBURL;
   protected paths: string[] = [];
   protected method: AllowedMethod = "GET";
-  protected body?: BodyQuery<R>;
-  protected query?: QueryOptions;
+  protected body?: BodyQuery;
+  protected queryParameters?: QueryOptions;
   protected headers: Headers = { Accept: "application/json" } as Headers;
-  protected model?: DocumentLikeConstructor<R, M>;
-  protected modelDataLookup?: string;
-  protected modelQueryParameters?: QueryOptions;
+  protected dataLookupPaths: string[] = [];
+  protected isResolved = false;
+  protected response?: QueryResponse<R, M>;
   // deno-lint-ignore no-explicit-any
-  protected chained: Set<(query: QueryResponse<R, M>) => any> = new Set();
+  protected toModelFactory?: (data: any) => M;
 
   constructor(
     connectionUrl: string | ArangoDBURL,
@@ -253,7 +283,9 @@ export class Query<
       url += `/_db/${this.connectionUrl.database}`;
     }
     return `${url}/${this.paths.join("/")}${
-      this.query ? `?${new URLSearchParams(this.query).toString()}` : ""
+      this.queryParameters
+        ? `?${new URLSearchParams(this.queryParameters).toString()}`
+        : ""
     }`;
   }
 
@@ -262,8 +294,9 @@ export class Query<
     return this;
   }
 
-  public setModel(model: DocumentLikeConstructor<R, M>) {
-    this.model = model;
+  // deno-lint-ignore no-explicit-any
+  public setToModelFactory(toModelFactory: (data: any) => M) {
+    this.toModelFactory = toModelFactory;
     return this;
   }
 
@@ -272,13 +305,8 @@ export class Query<
     return this;
   }
 
-  public setBody(body: BodyQuery<R>) {
+  public setBody(body: BodyQuery) {
     this.body = body;
-    return this;
-  }
-
-  public setQueryParameters(parameters: QueryOptions) {
-    this.query = { ...this.query, ...parameters };
     return this;
   }
 
@@ -296,102 +324,45 @@ export class Query<
     return this;
   }
 
-  public setModelDataLookup(dataLookup: string) {
-    this.modelDataLookup = dataLookup;
-    return this;
-  }
-
-  public setModelQueryParameters(parameters: QueryOptions) {
-    this.modelQueryParameters = parameters;
-    return this;
-  }
-
-  public returnNew(returnNew = true) {
-    this.setQueryParameters({ returnNew: returnNew.toString() });
-    return this;
-  }
-
-  public ok() {
-    this.chained.add((queryResponse: QueryResponse<R, M>) => queryResponse.ok());
-    return this;
-  }
-
-  public toModel(): PromiseLike<M> {
-    if (this.modelDataLookup) {
-      this.dataLookup(this.modelDataLookup);
-      if (this.modelQueryParameters) {
-        this.setQueryParameters(this.modelQueryParameters);
-      }
-    }
-    this.chained.add((queryResponse: QueryResponse<R, M>) =>
-      queryResponse.toModel()
-    );
-    return this;
-  }
-
-  public toModels(): PromiseLike<M[]> {
-    if (this.modelDataLookup) {
-      this.dataLookup(this.modelDataLookup);
-      if (this.modelQueryParameters) {
-        this.setQueryParameters(this.modelQueryParameters);
-      }
-    }
-    this.chained.add((queryResponse: QueryResponse<R, M>) =>
-      queryResponse.toModels()
-    );
-    return this;
-  }
-
-  public json() {
-    this.chained.add((queryResponse: QueryResponse<R, M>) => queryResponse.json());
-    return this;
-  }
-
-  public result<newR = R>(): PromiseLike<newR> {
-    this.chained.add((queryResponse: QueryResponse<R, M>) =>
-      queryResponse.result()
-    );
-    return this;
-  }
-
-  public cursor() {
-    this.chained.add((queryResponse: QueryResponse<R, M>) =>
-      queryResponse.cursor()
-    );
+  public setQueryParameters(queryParameters: QueryOptions) {
+    this.queryParameters = { ...this.queryParameters, ...queryParameters };
     return this;
   }
 
   public dataLookup(...paths: string[]) {
-    this.chained.add((queryResponse: QueryResponse<R, M>) =>
-      queryResponse.dataLookup(...paths)
-    );
+    this.dataLookupPaths = paths;
     return this;
   }
 
-  public async exec(): Promise<QueryResponse<R, M>> {
-    const response = await QueryResponse.fromFetch<R, M>(
-      fetch(this.url, {
-        method: this.method,
-        body: JSON.stringify(this.body),
-        headers: this.headers as unknown as HeadersInit,
-      }),
-    );
+  public resolveWith(response: QueryResponse<R, M>) {
+    this.response = response;
+    this.isResolved = true;
+  }
 
-    if (this.model) {
-      response.setModel(this.model);
+  public async exec(): Promise<QueryResponse<R, M>> {
+    if (!this.isResolved) {
+      this.response = await QueryResponse.fromFetch<R, M>(
+        fetch(this.url, {
+          method: this.method,
+          body: JSON.stringify(this.body),
+          headers: this.headers as unknown as HeadersInit,
+        }),
+      );
+
+      this.response.dataLookup(...this.dataLookupPaths);
+      if (this.toModelFactory) {
+        this.response!.setToModelFactory(this.toModelFactory);
+      }
+
+      this.isResolved = true;
     }
 
-    return [...this.chained]
-      .reduce(
-        (resp, func: (q: QueryResponse<R, M>) => QueryResponse<R, M>) => func(resp),
-        response,
-      );
+    return this.response!;
   }
 
   then<TResult1 = QueryResponse<R, M>, TResult2 = never>(
     onfulfilled?:
-      // deno-lint-ignore no-explicit-any
-      | ((value: any) => TResult1 | PromiseLike<TResult1>)
+      | ((value: QueryResponse<R, M>) => TResult1 | PromiseLike<TResult1>)
       | undefined
       | null,
     onrejected?:

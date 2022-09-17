@@ -1,37 +1,19 @@
-import { buildUser, TUser, User } from "./config.ts";
+import { buildUser, User } from "./models/user.ts";
 
-await User.truncateCollection().ok().result();
+await User.truncateCollection();
 
-const persistedUser = await buildUser().create().ok().toModel();
-await buildUser({ username: "white_panda" }).create().ok().toModel();
+const persistedUser = (await buildUser().create()).toModel();
+(await buildUser({ username: "white_panda" }).create()).toModel();
 
-let user: User;
-let userRaw: TUser;
-let users: User[];
-
-user = await User.findByKey(persistedUser._key!).ok().toModel();
+const user = (await User.findByKey(persistedUser._key!)).toModel();
 console.log("recovered user model:\n", user, "\n");
 
-userRaw = await User.findByKey(persistedUser._key!).ok().result();
-console.log("recovered user raw data:\n", userRaw, "\n");
+const userDocument = (await User.findByKey(persistedUser._key!)).result();
+console.log("recovered user document data:\n", userDocument, "\n");
 
-users = await User.find().ok().toModels();
+const users = (await User.find()).ok().toModel();
 console.log("all recovered users model:\n", users, "\n");
 
 // Clean collection
-await User.truncateCollection().ok().result();
+await User.truncateCollection();
 
-// FIXME, rebase https://gitlab.com/qonfucius/herdb/herdb_arangodb/-/merge_requests/3
-// import { aql } from "../mod.ts";
-//
-// const username = "white_panda";
-// console.log(
-//   `Users model with username '${username}':`,
-//   await User.find(
-//     aql`
-//       FOR doc IN users
-//       FILTER doc.username == ${newUsername}
-//       RETURN doc
-//     `,
-//   ).ok().toModel();
-// );

@@ -1,3 +1,4 @@
 {
-  "experimentalDecorators": true
+  "experimentalDecorators": true,
+  "emitDecoratorMetadata": true
 }

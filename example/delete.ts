@@ -1,44 +1,42 @@
-import { buildUser, User } from "./config.ts";
+import { buildUser, User } from "./models/user.ts";
 
-await User.truncateCollection().ok().result();
+(await User.truncateCollection()).ok().result();
 
-console.log("Creating a new user", "\n");
-const user = await User.create(buildUser()).ok().toModel();
-
+const user = (await User.create(buildUser())).ok().toModel();
 console.log(
   "Number of users:",
-  (await User.find().ok().toModels()).length,
+  (await User.find()).ok().toModel().length,
   "\n",
 );
 console.log(
   "Deletion applied from the model:",
-  await user.delete().ok().result(),
+  (await user.delete()).ok().result(),
   "\n",
 );
 console.log(
   "Number of users:",
-  (await User.find().ok().toModels()).length,
+  (await User.find()).ok().toModel().length,
   "\n",
 );
 
 console.log("Creating a new user", "\n");
-const rawUser = await User.create(buildUser()).ok().result();
+const documentUser = (await User.create(buildUser())).ok().result();
 
 console.log(
   "Number of users:",
-  (await User.find().ok().toModels()).length,
+  (await User.find()).ok().toModel().length,
   "\n",
 );
 console.log(
-  "Deletion applied from the raw record:",
-  await User.delete(rawUser).ok().result(),
+  "Deletion applied from the document record:",
+  (await User.delete(documentUser)).ok().result(),
   "\n",
 );
 console.log(
   "Number of users:",
-  (await User.find().ok().toModels()).length,
+  (await User.find()).ok().toModel().length,
   "\n",
 );
 
 // Clean collection
-await User.truncateCollection().ok().result();
+(await User.truncateCollection()).ok().result();

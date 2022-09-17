@@ -9,7 +9,7 @@ import {
   QueryError,
   uriParsing,
 } from "./query.ts";
-import { Collection } from "./collection.ts";
+import { Model } from "./model/mod.ts";
 import { QUERY_ERROR } from "./query_error.ts";
 
 interface ConnectionOptionsWithURI {
@@ -42,7 +42,7 @@ interface CurrentDatabaseInformation {
 
 export class Connection implements HerdbConnection<ConnectionOptions> {
   public options: ConnectionOptions = {} as ConnectionOptions;
-  protected registry: Record<string, Collection> = {};
+  protected registry: Record<string, typeof Model> = {};
   public url?: ArangoDBURL;
   constructor(options: ConnectionOptions) {
     this.options = options;
@@ -57,16 +57,16 @@ export class Connection implements HerdbConnection<ConnectionOptions> {
     return this;
   }
 
-  public getCurrentDatabaseInformation() {
+  public async getCurrentDatabaseInformation() {
     if (!this.url!.database) {
       throw new Error("Database name not found");
     }
-    return this.query<CurrentDatabaseInformation>([
+    return (await this.query<CurrentDatabaseInformation>([
       "database",
       "current",
     ], this.url)
       .setMethod("GET")
-      .basicAuth().ok().result();
+      .basicAuth()).ok().result();
   }
 
   public switchDatabase(name: string) {
@@ -96,7 +96,7 @@ export class Connection implements HerdbConnection<ConnectionOptions> {
   }
 
   public register(
-    model: typeof Collection,
+    model: typeof Model,
     key: string | undefined = model.name,
   ) {
     if (!key) {
