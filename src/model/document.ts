@@ -1,6 +1,7 @@
 import { ModelBaseClassInterface } from "./model.ts";
 
 const DOCUMENT = Symbol();
+const METADATA_KEY = ["_id", "_key", "_rev"] as const;
 
 /**
  * Common ArangoDB metadata properties of a document.
@@ -78,6 +79,19 @@ export function DocumentMixin<D extends DocumentMetadata>() {
        * JSON formatting is done from the document
        */
       public toJSON() {
+        return this[DOCUMENT];
+      }
+
+      /**
+       * Merge a given document to the current one       *       * @param partialDocument
+       * @returns
+       */
+      public mergeDocument(partialDocument: Partial<D>) {
+        for (const [key, value] of Object.entries(partialDocument)) {
+          if (!METADATA_KEY.includes(key as keyof DocumentMetadata)) {
+            this[DOCUMENT][key as keyof D] = value;
+          }
+        }
         return this[DOCUMENT];
       }
     };
