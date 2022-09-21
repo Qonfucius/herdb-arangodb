@@ -22,6 +22,7 @@ export type DocumentInfer<T> = T extends { [DOCUMENT]: infer D } ? D
 export interface DocumentInterface<D> extends DocumentMetadata {
   getDocument(): D;
   toJSON(): D;
+  mergeDocument(partialDocument: Partial<D>): this;
 }
 
 // deno-lint-ignore no-empty-interface
@@ -83,7 +84,9 @@ export function DocumentMixin<D extends DocumentMetadata>() {
       }
 
       /**
-       * Merge a given document to the current one       *       * @param partialDocument
+       * Merge a given document to the current one
+       * 
+       * @param partialDocument
        * @returns
        */
       public mergeDocument(partialDocument: Partial<D>) {
@@ -92,7 +95,7 @@ export function DocumentMixin<D extends DocumentMetadata>() {
             this[DOCUMENT][key as keyof D] = value;
           }
         }
-        return this[DOCUMENT];
+        return this;
       }
     };
   };
