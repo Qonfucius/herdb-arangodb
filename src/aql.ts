@@ -4,7 +4,7 @@
  *
  * We will keep the spirit of this file, and adapt it to work in this code base.
  */
-import { Collection, isCollection } from "./collection.ts";
+import { ModelBase } from "./model/model.ts";
 
 export interface AqlQuery {
   query: string;
@@ -21,7 +21,7 @@ export interface AqlLiteral {
 }
 
 export type AqlValue =
-  | typeof Collection
+  | typeof ModelBase
   | GeneratedAqlQuery
   | AqlLiteral
   | string
@@ -93,11 +93,17 @@ export function aql(
     const index = bindValues.indexOf(rawValue);
     const isKnown = index !== -1;
     let name = `value${isKnown ? index : bindValues.length}`;
+
     if (
-      isCollection(rawValue)
+      rawValue &&
+      // TODO: don't use any
+      // deno-lint-ignore no-explicit-any
+      (rawValue as any).prototype instanceof ModelBase
     ) {
       name = `@${name}`;
-      value = rawValue.collectionName;
+      // TODO: don't use any
+      // deno-lint-ignore no-explicit-any
+      value = (rawValue as any).collectionName;
     }
     if (!isKnown) {
       bindValues.push(rawValue);
